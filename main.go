@@ -19,6 +19,15 @@ func main() {
 		walletAAddr = flag.String("wallet-a-addr", "", "wallet A bech32 address (required)")
 		walletBSkey = flag.String("wallet-b-skey", "", "path to wallet B signing key (required)")
 		walletBAddr = flag.String("wallet-b-addr", "", "wallet B bech32 address (required)")
+		utxoOffset       = flag.Int("utxo-offset", 0, "UTXO selection offset (0=largest, 1=2nd largest, etc.)")
+		padding          = flag.Int("padding", 0, "bytes of random metadata to pad each tx (0=none)")
+		split            = flag.Int("split", 0, "split largest UTXO into N equal outputs, then exit")
+		plutusLock       = flag.Uint64("plutus-lock", 0, "lock N lovelace at always-succeeds script address, then exit")
+		plutusUnlockTx   = flag.String("plutus-unlock-txhash", "", "txhash of locked script UTXO to spend")
+		plutusUnlockIdx  = flag.Uint("plutus-unlock-idx", 0, "output index of locked script UTXO")
+		plutusUnlockVal  = flag.Uint64("plutus-unlock-value", 0, "lovelace value of locked script UTXO")
+		plutusCollTx     = flag.String("plutus-collateral-txhash", "", "txhash of collateral UTXO (wallet A)")
+		plutusCollIdx    = flag.Uint("plutus-collateral-idx", 0, "output index of collateral UTXO")
 	)
 	flag.Parse()
 
@@ -55,19 +64,57 @@ func main() {
 	fmt.Printf("protocol params: minFeeCoefficient=%d, minFeeConstant=%d lovelace\n",
 		params.MinFeeCoefficient, params.MinFeeConstant.Ada.Lovelace)
 
+	gun := &Gun{
+		TPS:          *tps,
+		Count:        *count,
+		Amount:       uint64(*amount),
+		SubmitURL:    *submitURL,
+		WalletA:      walletA,
+		WalletB:      walletB,
+		Ogmios:       ogmios,
+		Params:       params,
+		UTxOOffset:   *utxoOffset,
+		PaddingBytes: *padding,
+	}
+
+	if *split > 0 {
+		if err := gun.Split(*split); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *plutusLock > 0 {
+		if err := gun.PlutusLock(*plutusLock); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *plutusUnlockTx != "" {
+		if *plutusCollTx == "" {
+			fmt.Fprintln(os.Stderr, "error: --plutus-collateral-txhash required with --plutus-unlock-txhash")
+			os.Exit(1)
+		}
+		if *plutusUnlockVal == 0 {
+			fmt.Fprintln(os.Stderr, "error: --plutus-unlock-value required")
+			os.Exit(1)
+		}
+		err := gun.PlutusUnlock(
+			*plutusUnlockTx, uint32(*plutusUnlockIdx), *plutusUnlockVal,
+			*plutusCollTx, uint32(*plutusCollIdx),
+		)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-
-	gun := &Gun{
-		TPS:       *tps,
-		Count:     *count,
-		Amount:    uint64(*amount),
-		SubmitURL: *submitURL,
-		WalletA:   walletA,
-		WalletB:   walletB,
-		Ogmios:    ogmios,
-		Params:    params,
-	}
 
 	if err := gun.Fire(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

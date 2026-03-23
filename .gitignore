@@ -1,2 +1,4 @@
 wallets/
 mini-gun
+*.exe
+.env
