@@ -35,7 +35,7 @@ type jsonRPCError struct {
 	Message string `json:"message"`
 }
 
-// ProtocolParams holds the fee-relevant protocol parameters.
+// ProtocolParams holds the protocol parameters needed for transaction building.
 type ProtocolParams struct {
 	MinFeeCoefficient uint64 `json:"minFeeCoefficient"`
 	MinFeeConstant    struct {
@@ -43,6 +43,31 @@ type ProtocolParams struct {
 			Lovelace uint64 `json:"lovelace"`
 		} `json:"ada"`
 	} `json:"minFeeConstant"`
+
+	// Script execution prices (Ogmios v6 shape).
+	ScriptExecutionPrices struct {
+		Memory struct {
+			Numerator   int64 `json:"numerator"`
+			Denominator int64 `json:"denominator"`
+		} `json:"memory"`
+		CPU struct {
+			Numerator   int64 `json:"numerator"`
+			Denominator int64 `json:"denominator"`
+		} `json:"cpu"`
+	} `json:"scriptExecutionPrices"`
+
+	// Max execution units per transaction.
+	MaxExecutionUnitsPerTransaction struct {
+		Memory int64 `json:"memory"`
+		CPU    int64 `json:"cpu"`
+	} `json:"maxExecutionUnitsPerTransaction"`
+
+	// Collateral parameters.
+	CollateralPercentage uint64 `json:"collateralPercentage"`
+	MaxCollateralInputs  uint64 `json:"maxCollateralInputs"`
+
+	// Cost models keyed by "plutus:v1", "plutus:v2", "plutus:v3".
+	CostModels map[string][]int64 `json:"costModels"`
 }
 
 // UTxO represents a single unspent transaction output.
